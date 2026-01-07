@@ -1057,7 +1057,8 @@ SEARCH_PAGE = """
             var params = [];
             if (dateFrom.value) params.push('from=' + dateFrom.value);
             if (dateTo.value) params.push('to=' + dateTo.value);
-            params.push('offset=' + annOffset);
+            params.push('ann_offset=' + annOffset);
+            params.push('twt_offset=' + twtOffset);
             params.push('limit=15');
             url += '?' + params.join('&');
 
@@ -1118,7 +1119,8 @@ SEARCH_PAGE = """
             var params = [];
             if (dateFrom.value) params.push('from=' + dateFrom.value);
             if (dateTo.value) params.push('to=' + dateTo.value);
-            params.push('offset=' + annOffset);
+            params.push('ann_offset=' + annOffset);
+            params.push('twt_offset=' + twtOffset);
             params.push('limit=15');
             url += '?' + params.join('&');
 
@@ -1143,7 +1145,8 @@ SEARCH_PAGE = """
             var params = [];
             if (dateFrom.value) params.push('from=' + dateFrom.value);
             if (dateTo.value) params.push('to=' + dateTo.value);
-            params.push('offset=' + twtOffset);
+            params.push('ann_offset=' + annOffset);
+            params.push('twt_offset=' + twtOffset);
             params.push('limit=15');
             url += '?' + params.join('&');
 
@@ -2124,7 +2127,8 @@ def get_latest_grouped():
 
     date_from = request.args.get('from', '')
     date_to = request.args.get('to', '')
-    offset = int(request.args.get('offset', 0))
+    ann_offset = int(request.args.get('ann_offset', 0))
+    twt_offset = int(request.args.get('twt_offset', 0))
     limit = int(request.args.get('limit', 15))
 
     # Clean DATES column - filter out invalid values
@@ -2250,8 +2254,8 @@ def get_latest_grouped():
 
         return result, has_more
 
-    ann_results, has_more_ann = group_by_company(ann_df, twt_df, False, offset, limit) if not ann_df.empty else ([], False)
-    twt_results, has_more_twt = group_by_company(twt_df, ann_df, True, offset, limit) if not twt_df.empty else ([], False)
+    ann_results, has_more_ann = group_by_company(ann_df, twt_df, False, ann_offset, limit) if not ann_df.empty else ([], False)
+    twt_results, has_more_twt = group_by_company(twt_df, ann_df, True, twt_offset, limit) if not twt_df.empty else ([], False)
 
     return jsonify({
         'date': date_label,
