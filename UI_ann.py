@@ -2126,46 +2126,64 @@ def get_latest_grouped():
     date_to = request.args.get('to', '')
     offset = int(request.args.get('offset', 0))
     limit = int(request.args.get('limit', 15))
-    filtered = df.copy()
-    
+
     # Clean DATES column - filter out invalid values
-    if 'DATES' in filtered.columns:
+    if 'DATES' in df.columns:
         # Convert to string and identify valid dates (YYYY-MM-DD format)
-        filtered['DATES'] = filtered['DATES'].astype(str)
+        df['DATES'] = df['DATES'].astype(str)
         # Valid dates start with a year (4 digits)
-        valid_date_mask = filtered['DATES'].str.match(r'^\d{4}-\d{2}-\d{2}', na=False)
+        valid_date_mask = df['DATES'].str.match(r'^\d{4}-\d{2}-\d{2}', na=False)
     else:
-        valid_date_mask = pd.Series([False] * len(filtered))
-    
+        valid_date_mask = pd.Series([False] * len(df))
+
     if date_from or date_to:
         # Filter by date range, only on valid dates
-        work_df = filtered[valid_date_mask].copy()
-        if date_from: work_df = work_df[work_df['DATES'] >= date_from]
-        if date_to: work_df = work_df[work_df['DATES'] <= date_to]
-        filtered = work_df
+        filtered = df[valid_date_mask].copy()
+        if date_from: filtered = filtered[filtered['DATES'] >= date_from]
+        if date_to: filtered = filtered[filtered['DATES'] <= date_to]
         date_label = f"{date_from or 'Start'} → {date_to or 'Now'}"
+
+        ann_df = filtered[filtered['COMPANY TYPE'].str.lower() == 'announcement'] if 'COMPANY TYPE' in filtered.columns else filtered
+        twt_df = filtered[filtered['COMPANY TYPE'].str.lower() == 'twitter'] if 'COMPANY TYPE' in filtered.columns else pd.DataFrame()
     else:
-        # Get latest date - only from valid dates
-        valid_dates_df = filtered[valid_date_mask]
-        if not valid_dates_df.empty and 'DATES' in valid_dates_df.columns:
-            try:
-                latest = valid_dates_df['DATES'].max()
-                if latest and len(latest) >= 10:  # Valid YYYY-MM-DD
-                    filtered = filtered[filtered['DATES'] == latest]
-                    date_label = str(latest)
-                else:
-                    date_label = 'Unknown'
-            except Exception as e:
-                print(f"[Warning] Date max() error: {e}")
-                date_label = 'Unknown'
+        # NO DATE FILTER: Get latest data independently for announcements and Twitter
+        # Split FIRST, then get latest data from each
+        all_ann = df[df['COMPANY TYPE'].str.lower() == 'announcement'] if 'COMPANY TYPE' in df.columns else df
+        all_twt = df[df['COMPANY TYPE'].str.lower() == 'twitter'] if 'COMPANY TYPE' in df.columns else pd.DataFrame()
+
+        # Get latest announcement data
+        if not all_ann.empty:
+            ann_valid_mask = all_ann['DATES'].str.match(r'^\d{4}-\d{2}-\d{2}', na=False)
+            ann_valid = all_ann[ann_valid_mask]
+            if not ann_valid.empty:
+                latest_ann_date = ann_valid['DATES'].max()
+                ann_df = all_ann[all_ann['DATES'] == latest_ann_date]
+            else:
+                ann_df = pd.DataFrame()
+        else:
+            ann_df = pd.DataFrame()
+
+        # Get latest Twitter data independently
+        if not all_twt.empty:
+            twt_valid_mask = all_twt['DATES'].str.match(r'^\d{4}-\d{2}-\d{2}', na=False)
+            twt_valid = all_twt[twt_valid_mask]
+            if not twt_valid.empty:
+                latest_twt_date = twt_valid['DATES'].max()
+                twt_df = all_twt[all_twt['DATES'] == latest_twt_date]
+            else:
+                twt_df = pd.DataFrame()
+        else:
+            twt_df = pd.DataFrame()
+
+        # Set date label to latest overall date
+        valid_dates_df = df[valid_date_mask]
+        if not valid_dates_df.empty:
+            date_label = str(valid_dates_df['DATES'].max())
         else:
             date_label = 'Unknown'
-    
-    if filtered.empty:
+
+    if ann_df.empty and twt_df.empty:
         return jsonify({'date': date_label, 'announcements': [], 'twitter': [], 'has_more_announcements': False, 'has_more_twitter': False})
-    
-    ann_df = filtered[filtered['COMPANY TYPE'].str.lower() == 'announcement'] if 'COMPANY TYPE' in filtered.columns else filtered
-    twt_df = filtered[filtered['COMPANY TYPE'].str.lower() == 'twitter'] if 'COMPANY TYPE' in filtered.columns else pd.DataFrame()
 
     def group_by_company(source_df, other_df, is_twitter=False, offset=0, limit=15):
         result = []
